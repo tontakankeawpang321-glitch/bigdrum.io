@@ -33,11 +33,8 @@ export const DrumPadView: React.FC<DrumPadViewProps> = ({
 }) => {
   const [ripples, setRipples] = useState<RippleEffect[]>([]);
   const [activeZone, setActiveZone] = useState<HitType | null>(null);
-  const [leftMalletActive, setLeftMalletActive] = useState(false);
-  const [rightMalletActive, setRightMalletActive] = useState(false);
   const [isHandMuted, setIsHandMuted] = useState(false);
   const drumRef = useRef<HTMLDivElement>(null);
-  const malletSideRef = useRef<boolean>(false);
 
   // Trigger sound hit and animation
   const triggerHitZone = useCallback(
@@ -65,16 +62,6 @@ export const DrumPadView: React.FC<DrumPadViewProps> = ({
           // Ignore
         }
       }
-
-      // Alternate left/right mallets
-      if (malletSideRef.current) {
-        setLeftMalletActive(true);
-        setTimeout(() => setLeftMalletActive(false), 120);
-      } else {
-        setRightMalletActive(true);
-        setTimeout(() => setRightMalletActive(false), 120);
-      }
-      malletSideRef.current = !malletSideRef.current;
 
       // Active zone visual pulse
       setActiveZone(finalType);
@@ -263,43 +250,7 @@ export const DrumPadView: React.FC<DrumPadViewProps> = ({
       </div>
 
       {/* Main Drum Interactive View */}
-      <div className="relative w-full aspect-square my-auto flex items-center justify-center p-2 z-10">
-        {/* Animated Mallets (Left & Right) */}
-        <AnimatePresence>
-          <motion.div
-            animate={{
-              rotate: leftMalletActive ? -18 : 12,
-              y: leftMalletActive ? 15 : 0,
-              scale: leftMalletActive ? 0.95 : 1.0,
-            }}
-            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-            className="absolute -top-6 left-6 z-30 pointer-events-none origin-bottom-right"
-          >
-            {/* Mallet Stick & Felt Head */}
-            <div className="w-3.5 h-36 bg-gradient-to-b from-amber-200 via-amber-400 to-amber-700 rounded-full shadow-xl border border-amber-800 relative flex items-start justify-center">
-              <div className="w-10 h-10 rounded-full bg-slate-100 border-2 border-slate-300 shadow-lg -mt-3 flex items-center justify-center">
-                <div className="w-8 h-8 rounded-full bg-slate-200/90 border border-slate-400" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            animate={{
-              rotate: rightMalletActive ? 18 : -12,
-              y: rightMalletActive ? 15 : 0,
-              scale: rightMalletActive ? 0.95 : 1.0,
-            }}
-            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-            className="absolute -top-6 right-6 z-30 pointer-events-none origin-bottom-left"
-          >
-            <div className="w-3.5 h-36 bg-gradient-to-b from-amber-200 via-amber-400 to-amber-700 rounded-full shadow-xl border border-amber-800 relative flex items-start justify-center">
-              <div className="w-10 h-10 rounded-full bg-slate-100 border-2 border-slate-300 shadow-lg -mt-3 flex items-center justify-center">
-                <div className="w-8 h-8 rounded-full bg-slate-200/90 border border-slate-400" />
-              </div>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-
+      <div className="relative w-full my-auto flex items-center justify-center p-1 sm:p-2 z-10 flex-1 min-h-[220px]">
         {/* 3D Bass Drum Container styled identically to reference image */}
         <motion.div
           ref={drumRef}
@@ -309,7 +260,7 @@ export const DrumPadView: React.FC<DrumPadViewProps> = ({
             rotate: activeZone === 'rim' ? 0.5 : activeZone === 'center' ? -0.5 : 0,
           }}
           transition={{ type: 'spring', stiffness: 600, damping: 30 }}
-          className="relative w-full max-w-[340px] aspect-square rounded-full cursor-pointer touch-none shadow-[0_20px_50px_rgba(0,0,0,0.8)] border-4 border-slate-900 group select-none"
+          className="relative w-full max-w-[270px] xs:max-w-[310px] sm:max-w-[340px] aspect-square rounded-full cursor-pointer touch-none shadow-[0_20px_50px_rgba(0,0,0,0.8)] border-4 border-slate-900 group select-none"
         >
           {/* Drum Shell Side Depth & Stripes (Behind hoop) */}
           <div className="absolute -inset-2.5 rounded-full bg-gradient-to-tr from-slate-200 via-slate-100 to-slate-300 shadow-2xl -z-10 overflow-hidden">
