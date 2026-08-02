@@ -11,10 +11,11 @@ interface DrumPadViewProps {
   onOpenSoundTuner: () => void;
   onOpenSequencer: () => void;
   onOpenProjects: () => void;
+  onUpdateSoundParams?: (newParams: DrumSoundParams) => void;
 }
 
 interface RippleEffect {
-  id: number;
+  id: string;
   x: number;
   y: number;
   color: string;
@@ -28,6 +29,7 @@ export const DrumPadView: React.FC<DrumPadViewProps> = ({
   onOpenSoundTuner,
   onOpenSequencer,
   onOpenProjects,
+  onUpdateSoundParams,
 }) => {
   const [ripples, setRipples] = useState<RippleEffect[]>([]);
   const [activeZone, setActiveZone] = useState<HitType | null>(null);
@@ -90,7 +92,7 @@ export const DrumPadView: React.FC<DrumPadViewProps> = ({
         if (finalType === 'mute') color = '#10b981'; // Green for mute
 
         const newRipple: RippleEffect = {
-          id: Date.now() + Math.random(),
+          id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           x,
           y,
           color,
@@ -182,13 +184,46 @@ export const DrumPadView: React.FC<DrumPadViewProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={onOpenSoundTuner}
-          className="px-2.5 py-1.5 bg-[#2a2c33] hover:bg-[#33353e] text-slate-200 text-xs font-medium rounded-xl border border-[#2d2e35] flex items-center gap-1.5 transition active:scale-95 shadow"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span>ปรับเสียง</span>
-        </button>
+        <div className="flex items-center gap-1.5">
+          {onUpdateSoundParams && (
+            <button
+              onClick={() => {
+                const currentVol = soundParams.masterVolume || 1.0;
+                let nextVol = 1.0;
+                if (currentVol < 1.25) nextVol = 1.5;
+                else if (currentVol < 1.75) nextVol = 2.0;
+                else nextVol = 1.0;
+
+                const newParams = {
+                  ...soundParams,
+                  masterVolume: nextVol,
+                  rimVolume: nextVol,
+                };
+                onUpdateSoundParams(newParams);
+                drumAudio.triggerHit('center', newParams, 1.0);
+              }}
+              className={`px-2 py-1.5 text-xs font-bold rounded-xl border flex items-center gap-1 transition active:scale-95 shadow ${
+                (soundParams.masterVolume || 1.0) >= 1.9
+                  ? 'bg-[#e63946] text-white border-[#e63946] shadow-[#e63946]/40 font-mono'
+                  : (soundParams.masterVolume || 1.0) >= 1.4
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-mono'
+                  : 'bg-[#2a2c33] text-slate-300 border-[#2d2e35] font-mono'
+              }`}
+              title="สลับความดัง: 100% -> 150% -> 200%"
+            >
+              <Volume2 className="w-3.5 h-3.5 text-[#e63946]" />
+              <span>{Math.round((soundParams.masterVolume || 1.0) * 100)}%</span>
+            </button>
+          )}
+
+          <button
+            onClick={onOpenSoundTuner}
+            className="px-2.5 py-1.5 bg-[#2a2c33] hover:bg-[#33353e] text-slate-200 text-xs font-medium rounded-xl border border-[#2d2e35] flex items-center gap-1.5 transition active:scale-95 shadow"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>ปรับเสียง</span>
+          </button>
+        </div>
       </div>
 
       {/* Quick Hit Zone Indicator Badge */}

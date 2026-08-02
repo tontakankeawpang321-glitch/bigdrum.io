@@ -234,7 +234,7 @@ export const SongSequencer: React.FC<SongSequencerProps> = ({
           {/* Grid Tracks */}
           <div className="space-y-3">
             {project.tracks.map((track, trackIdx) => (
-              <div key={track.id} className="p-2.5 bg-slate-950/70 rounded-2xl border border-slate-800 space-y-2">
+              <div key={`${track.id}-${trackIdx}`} className="p-2.5 bg-slate-950/70 rounded-2xl border border-slate-800 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-white flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: track.color }} />

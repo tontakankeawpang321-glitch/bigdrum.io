@@ -57,7 +57,12 @@ export const SoundTunerModal: React.FC<SoundTunerModalProps> = ({
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white">ปรับแต่งเสียงกลองใหญ่ (Sound Synthesizer)</h3>
+              <h3 className="font-bold text-base text-white flex items-center gap-2">
+                <span>ปรับแต่งเสียงกลองใหญ่ (Sound Synthesizer)</span>
+                <span className="text-[10px] bg-[#e63946]/20 text-[#e63946] border border-[#e63946]/40 px-1.5 py-0.5 rounded-md font-mono font-bold">
+                  📱 MONO 100% MOBILE
+                </span>
+              </h3>
               <p className="text-xs text-[#8e9299]">ตั้งค่าโทนเสียง ความตึง ความก้อง และดาวน์โหลดไฟล์เสียง .WAV</p>
             </div>
           </div>
@@ -98,6 +103,83 @@ export const SoundTunerModal: React.FC<SoundTunerModalProps> = ({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Master Volume Boost Section */}
+          <div className="space-y-3 bg-[#0f0f12] p-3.5 rounded-2xl border border-[#e63946]/30 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-[#e63946] text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <Volume2 className="w-4 h-4" />
+                <span>ระดับความดังเสียง (Volume Boost - สูงสุด 200%)</span>
+              </h4>
+              <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-[#e63946]/20 text-[#e63946] border border-[#e63946]/40">
+                {Math.round((params.masterVolume || 1.0) * 100)}%
+              </span>
+            </div>
+
+            {/* Quick Volume Boost Presets */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: '100% ปกติ', val: 1.0 },
+                { label: '150% ดังพิเศษ', val: 1.5 },
+                { label: '200% ดังสูงสุด ⚡', val: 2.0 },
+              ].map(item => (
+                <button
+                  key={item.val}
+                  type="button"
+                  onClick={() => {
+                    handleSliderChange('masterVolume', item.val);
+                    handleSliderChange('rimVolume', item.val);
+                    drumAudio.triggerHit('center', { ...params, masterVolume: item.val, rimVolume: item.val }, 1.0);
+                  }}
+                  className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition active:scale-95 ${
+                    Math.abs((params.masterVolume || 1.0) - item.val) < 0.05
+                      ? 'bg-[#e63946] text-white border-[#e63946] shadow-md shadow-[#e63946]/30'
+                      : 'bg-[#2a2c33] text-slate-300 border-[#2d2e35] hover:bg-[#33353e]'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Master Volume Slider */}
+            <div className="space-y-1 pt-1">
+              <div className="flex justify-between text-slate-300 font-medium text-xs">
+                <span>ความดังเสียงกลองรวม (Master Volume)</span>
+                <span className="text-[#e63946] font-bold font-mono">
+                  {Math.round((params.masterVolume || 1.0) * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="2.0"
+                step="0.05"
+                value={params.masterVolume || 1.0}
+                onChange={e => handleSliderChange('masterVolume', parseFloat(e.target.value))}
+                className="w-full accent-[#e63946] h-2 bg-[#2d2e35] rounded-lg cursor-pointer"
+              />
+            </div>
+
+            {/* Rimshot Volume Slider */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-slate-300 font-medium text-xs">
+                <span>ความดังเสียงขอบไม้ (Rim Volume)</span>
+                <span className="text-[#e63946] font-bold font-mono">
+                  {Math.round((params.rimVolume || 0.85) * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="2.0"
+                step="0.05"
+                value={params.rimVolume || 0.85}
+                onChange={e => handleSliderChange('rimVolume', parseFloat(e.target.value))}
+                className="w-full accent-[#e63946] h-2 bg-[#2d2e35] rounded-lg cursor-pointer"
+              />
             </div>
           </div>
 

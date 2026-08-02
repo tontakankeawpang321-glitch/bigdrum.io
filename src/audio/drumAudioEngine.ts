@@ -3,29 +3,63 @@ import { DrumSoundParams, HitType, SongProject } from '../types';
 class DrumAudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private limiterNode: DynamicsCompressorNode | null = null;
   private reverbNode: ConvolverNode | null = null;
   private reverbGainNode: GainNode | null = null;
-  private isMuted: boolean = false;
+  private isUnlocked: boolean = false;
+
+  constructor() {
+    // Auto attach global touch/pointer listeners to unlock WebAudio on iOS / Android mobile browsers
+    if (typeof window !== 'undefined') {
+      const unlockEvents = ['touchstart', 'touchend', 'pointerdown', 'mousedown', 'keydown'];
+      const unlockHandler = () => {
+        this.unlockMobileAudio();
+        if (this.isUnlocked) {
+          unlockEvents.forEach(evt => window.removeEventListener(evt, unlockHandler, true));
+        }
+      };
+      unlockEvents.forEach(evt => window.addEventListener(evt, unlockHandler, true));
+    }
+  }
 
   public initContext(): AudioContext {
     if (!this.ctx) {
-      const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtxClass =
+        window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtxClass();
 
+      // Configure destination for Mono output to guarantee maximum mobile speaker compatibility
+      try {
+        this.ctx.destination.channelCount = 1;
+        this.ctx.destination.channelCountMode = 'explicit';
+        this.ctx.destination.channelInterpretation = 'speakers';
+      } catch {
+        // Fallback for browsers that restrict channelCount modification
+      }
+
+      // 1. Dynamics Compressor / Peak Limiter (Prevents bass clipping & crackling on phone speakers)
+      this.limiterNode = this.ctx.createDynamicsCompressor();
+      this.limiterNode.threshold.setValueAtTime(-2, this.ctx.currentTime);
+      this.limiterNode.knee.setValueAtTime(6, this.ctx.currentTime);
+      this.limiterNode.ratio.setValueAtTime(15, this.ctx.currentTime);
+      this.limiterNode.attack.setValueAtTime(0.002, this.ctx.currentTime);
+      this.limiterNode.release.setValueAtTime(0.08, this.ctx.currentTime);
+      this.limiterNode.connect(this.ctx.destination);
+
+      // 2. Master Gain
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.value = 0.9;
+      this.masterGain.connect(this.limiterNode);
 
-      // Create synthetic Reverb impulse
+      // 3. Synthetic Mono Reverb Impulse
       this.reverbNode = this.ctx.createConvolver();
-      this.reverbNode.buffer = this.createImpulseResponse(this.ctx, 1.8, 2.5);
-      
+      this.reverbNode.buffer = this.createImpulseResponse(this.ctx, 1.6, 2.5);
+
       this.reverbGainNode = this.ctx.createGain();
-      this.reverbGainNode.gain.value = 0.25;
+      this.reverbGainNode.gain.value = 0.2;
 
       this.reverbNode.connect(this.reverbGainNode);
       this.reverbGainNode.connect(this.masterGain);
-
-      this.masterGain.connect(this.ctx.destination);
     }
 
     if (this.ctx.state === 'suspended') {
@@ -35,31 +69,72 @@ class DrumAudioEngine {
     return this.ctx;
   }
 
+  /**
+   * Unlock WebAudio for iOS Safari & Android mobile browsers
+   */
+  public unlockMobileAudio() {
+    const ctx = this.initContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume();
+    }
+
+    // Play a tiny 1-sample silent buffer to prime mobile hardware
+    if (ctx && !this.isUnlocked) {
+      try {
+        const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        this.isUnlocked = true;
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
   public getContext(): AudioContext | null {
     return this.ctx;
   }
 
   public setMasterVolume(vol: number) {
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(Math.max(0, Math.min(1, vol)), this.ctx.currentTime, 0.02);
+      this.masterGain.gain.setTargetAtTime(Math.max(0, Math.min(2.0, vol)), this.ctx.currentTime, 0.02);
     }
   }
 
+  /**
+   * Create a MONO impulse response buffer for punchy room reverberation without phase cancellation
+   */
   private createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: number): AudioBuffer {
     const sampleRate = ctx.sampleRate;
-    const length = sampleRate * duration;
-    const impulse = ctx.createBuffer(2, length, sampleRate);
-    const left = impulse.getChannelData(0);
-    const right = impulse.getChannelData(1);
+    const length = Math.floor(sampleRate * duration);
+    // 1 Channel = Pure Mono Reverb
+    const impulse = ctx.createBuffer(1, length, sampleRate);
+    const channel = impulse.getChannelData(0);
 
     for (let i = 0; i < length; i++) {
       const n = i / length;
       const factor = Math.pow(1 - n, decay);
-      left[i] = (Math.random() * 2 - 1) * factor;
-      right[i] = (Math.random() * 2 - 1) * factor;
+      channel[i] = (Math.random() * 2 - 1) * factor;
     }
 
     return impulse;
+  }
+
+  /**
+   * Soft-clipping saturation curve for Tube Drive warmth
+   */
+  private makeDistortionCurve(amount: number): Float32Array {
+    const k = Math.max(0.1, amount * 25);
+    const n = 44100;
+    const curve = new Float32Array(n);
+    const deg = Math.PI / 180;
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2) / n - 1;
+      curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+    }
+    return curve;
   }
 
   /**
@@ -73,6 +148,7 @@ class DrumAudioEngine {
     customCtx?: BaseAudioContext,
     customDestination?: AudioNode
   ) {
+    this.unlockMobileAudio();
     const ctx = customCtx || this.initContext();
     const startTime = (customCtx ? 0 : ctx.currentTime) + timeOffset;
     const vel = Math.max(0.1, Math.min(1.0, velocity));
@@ -95,7 +171,6 @@ class DrumAudioEngine {
     velocity: number,
     customDestination?: AudioNode
   ) {
-    // Determine base parameters according to hit zone
     let basePitch = params.pitch;
     let decayTime = params.decay;
     let pitchSweep = params.pitchSweep;
@@ -103,17 +178,16 @@ class DrumAudioEngine {
     let malletHardness = params.malletHardness;
 
     if (type === 'edge') {
-      basePitch *= 1.25; // Higher fundamental ring
+      basePitch *= 1.22; // Higher fundamental ring
       decayTime *= 1.1;
-      pitchSweep *= 0.6;
+      pitchSweep *= 0.55;
       malletHardness *= 0.7;
     } else if (type === 'mute') {
-      decayTime *= 0.25; // Quick choked sound
-      muffle = Math.max(0.7, muffle);
+      decayTime *= 0.22; // Quick choked sound
+      muffle = Math.max(0.75, muffle);
       basePitch *= 0.95;
     }
 
-    // Velocity scaling
     const vol = velocity * (params.masterVolume || 0.9);
     const effectiveDecay = decayTime * (1 - muffle * 0.7);
 
@@ -128,7 +202,7 @@ class DrumAudioEngine {
     osc.frequency.setValueAtTime(startFreq, startTime);
     osc.frequency.exponentialRampToValueAtTime(Math.max(10, endFreq), startTime + Math.min(0.12, effectiveDecay));
 
-    oscGain.gain.setValueAtTime(vol * 1.2, startTime);
+    oscGain.gain.setValueAtTime(vol * 1.15, startTime);
     oscGain.gain.exponentialRampToValueAtTime(0.0001, startTime + effectiveDecay);
 
     // 2. Harmonic Body Overtone
@@ -138,7 +212,7 @@ class DrumAudioEngine {
     bodyOsc.frequency.setValueAtTime(startFreq * (params.bodyTone || 1.0), startTime);
     bodyOsc.frequency.exponentialRampToValueAtTime(endFreq * 0.9, startTime + 0.08);
 
-    bodyGain.gain.setValueAtTime(vol * 0.4 * (1 - muffle), startTime);
+    bodyGain.gain.setValueAtTime(vol * 0.35 * (1 - muffle), startTime);
     bodyGain.gain.exponentialRampToValueAtTime(0.0001, startTime + effectiveDecay * 0.6);
 
     // 3. Mallet Transient Attack (Felt punch click)
@@ -152,7 +226,7 @@ class DrumAudioEngine {
     noiseFilter.Q.setValueAtTime(2.0, startTime);
 
     const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(vol * malletHardness * 0.8, startTime);
+    noiseGain.gain.setValueAtTime(vol * malletHardness * 0.75, startTime);
     noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.03);
 
     noiseSource.connect(noiseFilter);
@@ -161,7 +235,7 @@ class DrumAudioEngine {
     // 4. Low-pass Muffle filter
     const muffleFilter = ctx.createBiquadFilter();
     muffleFilter.type = 'lowpass';
-    const cutoffFreq = Math.max(120, 2500 * (1 - muffle));
+    const cutoffFreq = Math.max(120, 2600 * (1 - muffle));
     muffleFilter.frequency.setValueAtTime(cutoffFreq, startTime);
 
     // 5. Bass EQ Boost
@@ -170,7 +244,7 @@ class DrumAudioEngine {
     bassEQ.frequency.setValueAtTime(80, startTime);
     bassEQ.gain.setValueAtTime(params.bassBoost || 0, startTime);
 
-    // Connect nodes
+    // Connect sound generators
     osc.connect(oscGain);
     bodyOsc.connect(bodyGain);
 
@@ -180,21 +254,31 @@ class DrumAudioEngine {
 
     muffleFilter.connect(bassEQ);
 
-    // Route to destination or engine master gain
+    // 6. Tube Drive / Warm Saturation (if drive > 0)
+    let outputNode: AudioNode = bassEQ;
+    if (params.drive && params.drive > 0) {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = this.makeDistortionCurve(params.drive);
+      shaper.oversample = '2x';
+      bassEQ.connect(shaper);
+      outputNode = shaper;
+    }
+
+    // Route to destination node or engine master gain
     const destinationNode = customDestination || this.masterGain;
     if (destinationNode) {
-      bassEQ.connect(destinationNode);
+      outputNode.connect(destinationNode);
 
-      // Route dry to reverb if enabled
+      // Route dry signal to mono reverb if enabled
       if (!customDestination && this.reverbNode && params.reverbSize > 0) {
         if (this.reverbGainNode) {
-          this.reverbGainNode.gain.setValueAtTime(params.reverbSize * 0.5, startTime);
+          this.reverbGainNode.gain.setValueAtTime(params.reverbSize * 0.45, startTime);
         }
-        bassEQ.connect(this.reverbNode);
+        outputNode.connect(this.reverbNode);
       }
     }
 
-    // Play oscillators
+    // Start oscillators
     osc.start(startTime);
     osc.stop(startTime + effectiveDecay + 0.05);
 
@@ -219,7 +303,6 @@ class DrumAudioEngine {
     const rimFreq = params.rimPitch || 750;
     const rimDecay = params.rimDecay || 0.12;
 
-    // Wood tone oscillator
     const osc = ctx.createOscillator();
     osc.type = 'square';
     osc.frequency.setValueAtTime(rimFreq, startTime);
@@ -231,10 +314,9 @@ class DrumAudioEngine {
     oscFilter.Q.setValueAtTime(4.0, startTime);
 
     const oscGain = ctx.createGain();
-    oscGain.gain.setValueAtTime(vol * 0.9, startTime);
+    oscGain.gain.setValueAtTime(vol * 0.85, startTime);
     oscGain.gain.exponentialRampToValueAtTime(0.0001, startTime + rimDecay);
 
-    // Wooden strike transient noise
     const noiseBuf = this.createNoiseBuffer(ctx, 0.04);
     const noiseSource = ctx.createBufferSource();
     noiseSource.buffer = noiseBuf;
@@ -244,7 +326,7 @@ class DrumAudioEngine {
     noiseFilter.frequency.setValueAtTime(1500, startTime);
 
     const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(vol * 0.7, startTime);
+    noiseGain.gain.setValueAtTime(vol * 0.65, startTime);
     noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.03);
 
     osc.connect(oscFilter);
@@ -268,7 +350,7 @@ class DrumAudioEngine {
 
   private createNoiseBuffer(ctx: BaseAudioContext, duration: number): AudioBuffer {
     const sampleRate = ctx.sampleRate;
-    const bufferSize = sampleRate * duration;
+    const bufferSize = Math.floor(sampleRate * duration);
     const buffer = ctx.createBuffer(1, bufferSize, sampleRate);
     const data = buffer.getChannelData(0);
 
@@ -279,12 +361,13 @@ class DrumAudioEngine {
   }
 
   /**
-   * Render a single hit sound to an AudioBuffer for WAV export
+   * Render a single hit sound to a MONO AudioBuffer for WAV export
    */
   public async renderHitToBuffer(type: HitType, params: DrumSoundParams): Promise<AudioBuffer> {
-    const sampleRate = 44100;
+    const sampleRate = (this.ctx && this.ctx.sampleRate) || 44100;
     const duration = type === 'rim' ? 0.5 : Math.max(1.0, params.decay + 0.5);
-    const offlineCtx = new OfflineAudioContext(2, sampleRate * duration, sampleRate);
+    // 1 channel = MONO Audio rendering
+    const offlineCtx = new OfflineAudioContext(1, Math.floor(sampleRate * duration), sampleRate);
 
     const masterGain = offlineCtx.createGain();
     masterGain.gain.value = 1.0;
@@ -296,10 +379,10 @@ class DrumAudioEngine {
   }
 
   /**
-   * Render full song project sequence to AudioBuffer for WAV export
+   * Render full song project sequence to a MONO AudioBuffer for WAV export
    */
   public async renderProjectToBuffer(project: SongProject): Promise<AudioBuffer> {
-    const sampleRate = 44100;
+    const sampleRate = (this.ctx && this.ctx.sampleRate) || 44100;
     const bpm = project.bpm || 120;
     const stepDuration = 60 / bpm / 4; // 16th notes
     const totalSteps = project.stepsCount || 16;
@@ -307,19 +390,22 @@ class DrumAudioEngine {
     const tailTime = 2.0; // reverb/decay tail
     const totalDuration = loopDuration + tailTime;
 
-    const offlineCtx = new OfflineAudioContext(2, sampleRate * totalDuration, sampleRate);
+    // 1 channel = MONO Audio rendering
+    const offlineCtx = new OfflineAudioContext(1, Math.floor(sampleRate * totalDuration), sampleRate);
 
     const masterGain = offlineCtx.createGain();
     masterGain.gain.value = 0.95;
     masterGain.connect(offlineCtx.destination);
 
-    // Optional reverb node in offline context
-    const reverbNode = offlineCtx.createConvolver();
-    reverbNode.buffer = this.createImpulseResponse(offlineCtx, 1.5, 2.0);
-    const reverbGain = offlineCtx.createGain();
-    reverbGain.gain.value = project.soundParams.reverbSize * 0.4;
-    reverbNode.connect(reverbGain);
-    reverbGain.connect(masterGain);
+    // Reverb node in offline context (Mono)
+    if (project.soundParams.reverbSize > 0) {
+      const reverbNode = offlineCtx.createConvolver();
+      reverbNode.buffer = this.createImpulseResponse(offlineCtx, 1.5, 2.0);
+      const reverbGain = offlineCtx.createGain();
+      reverbGain.gain.value = project.soundParams.reverbSize * 0.4;
+      reverbNode.connect(reverbGain);
+      reverbGain.connect(masterGain);
+    }
 
     // Iterate through tracks and trigger active steps
     project.tracks.forEach(track => {

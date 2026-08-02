@@ -199,13 +199,13 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
             </div>
 
             <div className="space-y-2">
-              {projects.map(proj => {
+              {projects.map((proj, projIdx) => {
                 const isActive = proj.id === currentProject.id;
                 const isEditing = editingId === proj.id;
 
                 return (
                   <div
-                    key={proj.id}
+                    key={`${proj.id}-${projIdx}`}
                     className={`p-3 rounded-2xl border transition flex items-center justify-between gap-2 ${
                       isActive
                         ? 'bg-amber-500/10 border-amber-500/60 shadow-md'

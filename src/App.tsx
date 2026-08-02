@@ -116,6 +116,7 @@ export default function App() {
           onOpenSoundTuner={() => setIsSoundTunerOpen(true)}
           onOpenSequencer={() => setIsSequencerOpen(true)}
           onOpenProjects={() => setIsProjectsOpen(true)}
+          onUpdateSoundParams={handleUpdateSoundParams}
         />
 
         {/* Live Recorder Drawer below drum */}

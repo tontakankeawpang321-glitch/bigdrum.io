@@ -52,7 +52,7 @@ export function audioBufferToWav(buffer: AudioBuffer): Blob {
   while (offset < buffer.length) {
     for (let i = 0; i < numOfChan; i++) {
       let sample = Math.max(-1, Math.min(1, channels[i][offset]));
-      sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+      sample = (sample < 0 ? sample * 32768 : sample * 32767) | 0;
       out.setInt16(pos, sample, true);
       pos += 2;
     }
