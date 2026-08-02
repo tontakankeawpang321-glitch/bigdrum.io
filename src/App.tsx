@@ -78,11 +78,12 @@ export default function App() {
         {/* Action icons */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
-            onClick={() => setIsHelpOpen(true)}
-            className="p-1.5 bg-[#2a2c33] hover:bg-[#33353e] text-slate-300 rounded-xl border border-[#2d2e35] transition active:scale-95"
-            title="คู่มือการใช้"
+            onClick={() => setIsSoundTunerOpen(true)}
+            className="px-2.5 py-1.5 bg-[#2a2c33] hover:bg-[#33353e] text-slate-200 text-xs font-medium rounded-xl border border-[#2d2e35] flex items-center gap-1.5 transition active:scale-95 shadow"
+            title="ปรับแต่งเสียงกลอง"
           >
-            <HelpCircle className="w-4 h-4 text-amber-400" />
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>ปรับเสียง</span>
           </button>
 
           <button
