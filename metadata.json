@@ -1,0 +1,6 @@
+{
+  "name": "กลองใหญ่สากล - Concert Bass Drum",
+  "description": "แอพจำลองกลองใหญ่สากล (Concert & Marching Bass Drum) พร้อมระบบปรับแต่งเสียง ตีขอบ ตีหน้ากลอง เครื่องมือแต่งเพลง บันทึกเสียง และส่งออกโปรเจค",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

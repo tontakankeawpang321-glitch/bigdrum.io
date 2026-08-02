@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .grid-cols-16 {
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+  }
+}
+
+:root {
+  --studio-bg: #0f0f12;
+  --panel-bg: #1a1b1f;
+  --accent: #e63946;
+  --accent-glow: rgba(230, 57, 70, 0.4);
+  --text-dim: #8e9299;
+  --border: #2d2e35;
+}
+
+body {
+  background-color: var(--studio-bg);
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Custom scrollbar for DAW look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #121316;
+}
+::-webkit-scrollbar-thumb {
+  background: #2d2e35;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #e63946;
+}
+
